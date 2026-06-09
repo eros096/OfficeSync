@@ -107,10 +107,10 @@ public class TablePanel extends JPanel {
             } else if (text.equalsIgnoreCase("Desk Tool")) {
                 label.setBackground(new Color(255, 238, 219));
                 label.setForeground(new Color(150, 85, 20));
-            } else if (text.equalsIgnoreCase("Low Stock") || text.equalsIgnoreCase("Rejected")) {
+            } else if (text.equalsIgnoreCase("Low Stock") || text.equalsIgnoreCase("Rejected") || text.equalsIgnoreCase("Out of Stock") || text.equalsIgnoreCase("Not Active")) {
                 label.setBackground(new Color(255, 231, 231));
                 label.setForeground(new Color(150, 35, 35));
-            } else if (text.equalsIgnoreCase("Available") || text.equalsIgnoreCase("Approved")) {
+            } else if (text.equalsIgnoreCase("Available") || text.equalsIgnoreCase("Approved") || text.equalsIgnoreCase("Active")) {
                 label.setBackground(new Color(229, 246, 235));
                 label.setForeground(new Color(35, 120, 65));
             } else if (text.equalsIgnoreCase("Pending")) {

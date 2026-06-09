@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS supplies;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS departments;
 
--- Departments group users and control what Department Head accounts can see.
+-- Departments group users by business unit.
 CREATE TABLE departments (
     department_id INT PRIMARY KEY AUTO_INCREMENT,
     department_name VARCHAR(100) NOT NULL UNIQUE
@@ -26,13 +26,15 @@ CREATE TABLE users (
 );
 
 -- Supplies are inventory items. The app marks an item as low stock when
--- quantity_in_stock is less than or equal to reorder_level.
+-- quantity_in_stock is less than or equal to reorder_level. The app marks
+-- is_available as false when quantity_in_stock is 0.
 CREATE TABLE supplies (
     supply_id INT PRIMARY KEY AUTO_INCREMENT,
     supply_name VARCHAR(100) NOT NULL,
     category VARCHAR(50) NOT NULL,
     quantity_in_stock INT NOT NULL,
-    reorder_level INT NOT NULL
+    reorder_level INT NOT NULL,
+    is_available BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Requests store who submitted the request, the date, and review status.
@@ -63,17 +65,17 @@ INSERT INTO departments (department_name) VALUES
 
 INSERT INTO users (full_name, email, password_hash, role, department_id) VALUES
 ('Alyssa Reyes', 'admin@officesync.local', SHA2('1234', 256), 'Admin', 1),
-('Marco Santos', 'head@officesync.local', SHA2('1234', 256), 'Department Head', 2),
+('Marco Santos', 'head@officesync.local', SHA2('1234', 256), 'Employee', 2),
 ('Juan Dela Cruz', 'employee@officesync.local', SHA2('1234', 256), 'Employee', 4),
 ('Maria Santos', 'maria@officesync.local', SHA2('1234', 256), 'Employee', 3);
 
-INSERT INTO supplies (supply_name, category, quantity_in_stock, reorder_level) VALUES
-('Bond Paper', 'Paper', 8, 10),
-('Ballpen', 'Writing', 35, 12),
-('Stapler', 'Desk Tool', 14, 5),
-('Folder', 'Filing', 26, 10),
-('Marker', 'Writing', 4, 8),
-('Sticky Notes', 'Paper', 18, 6);
+INSERT INTO supplies (supply_name, category, quantity_in_stock, reorder_level, is_available) VALUES
+('Bond Paper', 'Paper', 8, 10, TRUE),
+('Ballpen', 'Writing', 35, 12, TRUE),
+('Stapler', 'Desk Tool', 14, 5, TRUE),
+('Folder', 'Filing', 26, 10, TRUE),
+('Marker', 'Writing', 0, 8, FALSE),
+('Sticky Notes', 'Paper', 18, 6, TRUE);
 
 INSERT INTO requests (user_id, request_date, status) VALUES
 (3, '2026-06-01', 'Pending'),

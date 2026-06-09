@@ -9,6 +9,8 @@ import constants.PanelCard;
 import constants.TablePanel;
 import constants.ValidationUtil;
 import dialogs.AppDialog;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +20,8 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import models.Supply;
 import models.SupplyRequest;
@@ -30,12 +34,13 @@ public class RequestsPanel extends JPanel {
     private static final int CARD_GAP = 14;
     private static final int ACTION_WIDTH = 112;
     private static final int ACTION_GAP = 12;
+    private static final String SEARCH_PLACEHOLDER = "Search by requester, department, or supply...";
     private final User user;
     private final DefaultTableModel tableModel = new DefaultTableModel(
             new Object[]{"Request ID", "Requester", "Department", "Supply", "Qty", "Date", "Status"}, 0
     );
     private final JComboBox<String> statusFilter = new JComboBox<>(new String[]{"All", "Pending", "Approved", "Rejected"});
-    private final JTextField searchField = new JTextField("Search by requester, department, or supply...");
+    private final JTextField searchField = new JTextField(SEARCH_PLACEHOLDER);
     private TablePanel tablePanel;
     private PanelCard totalCard;
     private PanelCard pendingCard;
@@ -57,7 +62,9 @@ public class RequestsPanel extends JPanel {
 
     public void refresh() {
         try {
-            currentSupplies = OfficeSyncDatabase.findAllSupplies();
+            currentSupplies = OfficeSyncDatabase.findAllSupplies().stream()
+                    .filter(Supply::isAvailable)
+                    .toList();
             currentRequests = OfficeSyncDatabase.findVisibleRequests(user);
             loadRequests();
             refreshCards();
@@ -73,7 +80,7 @@ public class RequestsPanel extends JPanel {
         title.setForeground(AppColors.TEXT);
         add(title);
 
-        JLabel subtitle = new JLabel("Submit, review, approve, reject, view, or delete supply requests.");
+        JLabel subtitle = new JLabel("Submit, review, view, or delete supply requests.");
         subtitle.setBounds(28, 52, 560, 24);
         subtitle.setFont(AppFonts.BODY);
         subtitle.setForeground(AppColors.MUTED_TEXT);
@@ -138,6 +145,7 @@ public class RequestsPanel extends JPanel {
         searchField.setBounds(20, 18, CONTENT_WIDTH - 444, 36);
         searchField.setFont(AppFonts.BODY);
         searchField.setForeground(AppColors.MUTED_TEXT);
+        configureSearchField();
         panel.add(searchField);
 
         statusFilter.setBounds(CONTENT_WIDTH - 404, 18, 130, 36);
@@ -153,13 +161,15 @@ public class RequestsPanel extends JPanel {
         JButton refresh = ButtonStyles.secondary("Refresh");
         refresh.setBounds(CONTENT_WIDTH - 134, 18, 100, 36);
         refresh.addActionListener(event -> {
-            searchField.setText("Search by requester, department, or supply...");
+            searchField.setText(SEARCH_PLACEHOLDER);
             statusFilter.setSelectedItem("All");
             refresh();
         });
         panel.add(refresh);
 
-        JLabel note = new JLabel("Use Submit to open the request form. Select a row before View, Approve, Reject, or Delete.");
+        JLabel note = new JLabel(user.getRole() == User.Role.ADMIN
+                ? "Use Submit to open the request form. Select a row before View, Approve, Reject, or Delete."
+                : "Use Submit to open the request form. Select a row before View or Delete.");
         note.setBounds(20, 76, 720, 24);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
@@ -169,7 +179,7 @@ public class RequestsPanel extends JPanel {
     private void buildTable() {
         tablePanel = new TablePanel("Request Records", tableModel, 250);
         tablePanel.setBounds(CONTENT_X, 342, CONTENT_WIDTH, 590);
-        if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.DEPARTMENT_HEAD) {
+        if (user.getRole() == User.Role.ADMIN) {
             JButton approve = tableActionButton("Approve", AppColors.WARNING, CONTENT_WIDTH - 244);
             approve.setForeground(AppColors.TEXT);
             approve.addActionListener(event -> updateSelectedStatus("Approved"));
@@ -254,6 +264,10 @@ public class RequestsPanel extends JPanel {
             refresh();
             AppDialog.info(this, "Request marked as " + status + ".");
         } catch (SQLException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("Not enough stock")) {
+                AppDialog.warning(this, ex.getMessage());
+                return;
+            }
             AppDialog.error(this, "Unable to update request:\n" + ex.getMessage());
         }
     }
@@ -299,7 +313,7 @@ public class RequestsPanel extends JPanel {
         tableModel.setRowCount(0);
         String selectedStatus = statusFilter.getSelectedItem() == null ? "All" : statusFilter.getSelectedItem().toString();
         String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase();
-        boolean hasSearch = !query.isEmpty() && !query.equals("search by requester, department, or supply...");
+        boolean hasSearch = !query.isEmpty() && !query.equals(SEARCH_PLACEHOLDER.toLowerCase());
 
         for (SupplyRequest request : currentRequests) {
             if (!selectedStatus.equals("All") && !request.getStatus().equalsIgnoreCase(selectedStatus)) {
@@ -338,28 +352,64 @@ public class RequestsPanel extends JPanel {
 
     private JPanel requestFormPanel(JComboBox<SupplyOption> supplyBox, LabeledField quantityField) {
         JPanel panel = new JPanel(null);
-        panel.setPreferredSize(new java.awt.Dimension(420, 170));
+        panel.setPreferredSize(new java.awt.Dimension(560, 230));
         panel.setBackground(AppColors.SURFACE);
 
         JLabel supplyLabel = new JLabel("Supply");
-        supplyLabel.setBounds(18, 12, 160, 22);
+        supplyLabel.setBounds(24, 18, 160, 22);
         supplyLabel.setFont(AppFonts.LABEL);
         supplyLabel.setForeground(AppColors.TEXT);
         panel.add(supplyLabel);
 
-        supplyBox.setBounds(18, 38, 380, 34);
+        supplyBox.setBounds(24, 46, 512, 40);
         supplyBox.setFont(AppFonts.BODY);
         panel.add(supplyBox);
 
-        quantityField.setBounds(18, 86, 180, 48);
+        quantityField.setBounds(24, 110, 246, 58);
         panel.add(quantityField);
 
         JLabel note = new JLabel("Request quantity must be greater than zero.");
-        note.setBounds(210, 102, 200, 24);
+        note.setBounds(290, 126, 246, 24);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
         panel.add(note);
         return panel;
+    }
+
+    private void configureSearchField() {
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent event) {
+                if (SEARCH_PLACEHOLDER.equals(searchField.getText())) {
+                    searchField.setText("");
+                    searchField.setForeground(AppColors.TEXT);
+                }
+            }
+
+            @Override
+            public void focusLost(FocusEvent event) {
+                if (searchField.getText().trim().isEmpty()) {
+                    searchField.setText(SEARCH_PLACEHOLDER);
+                    searchField.setForeground(AppColors.MUTED_TEXT);
+                }
+            }
+        });
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                loadRequests();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                loadRequests();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                loadRequests();
+            }
+        });
     }
 
     private static class SupplyOption {

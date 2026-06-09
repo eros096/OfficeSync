@@ -6,13 +6,15 @@ public class Supply {
     private final String category;
     private final int stock;
     private final int reorderLevel;
+    private final boolean available;
 
-    public Supply(int id, String name, String category, int stock, int reorderLevel) {
+    public Supply(int id, String name, String category, int stock, int reorderLevel, boolean available) {
         this.id = id;
         this.name = name;
         this.category = category;
         this.stock = stock;
         this.reorderLevel = reorderLevel;
+        this.available = available;
     }
 
     public int getId() {
@@ -35,7 +37,18 @@ public class Supply {
         return reorderLevel;
     }
 
+    public boolean isAvailable() {
+        return available;
+    }
+
+    public String getAvailabilityStatus() {
+        return available ? "Active" : "Not Active";
+    }
+
     public String getStatus() {
+        if (!available) {
+            return "Out of Stock";
+        }
         return stock <= reorderLevel ? "Low Stock" : "Available";
     }
 }

@@ -9,6 +9,8 @@ import constants.PanelCard;
 import constants.TablePanel;
 import constants.ValidationUtil;
 import dialogs.AppDialog;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +19,8 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import models.Supply;
 import models.User;
@@ -28,11 +32,12 @@ public class SuppliesPanel extends JPanel {
     private static final int CARD_GAP = 14;
     private static final int ACTION_WIDTH = 122;
     private static final int ACTION_GAP = 12;
+    private static final String SEARCH_PLACEHOLDER = "Search by supply name or category...";
     private final User user;
     private final DefaultTableModel tableModel = new DefaultTableModel(
-            new Object[]{"ID", "Supply Name", "Category", "Stock", "Reorder Level", "Status"}, 0
+            new Object[]{"ID", "Supply Name", "Category", "Stock", "Reorder Level", "Availability", "Status"}, 0
     );
-    private final JTextField searchField = new JTextField("Search by supply name or category...");
+    private final JTextField searchField = new JTextField(SEARCH_PLACEHOLDER);
     private TablePanel tablePanel;
     private PanelCard totalCard;
     private PanelCard lowStockCard;
@@ -142,6 +147,7 @@ public class SuppliesPanel extends JPanel {
         searchField.setBounds(20, 18, CONTENT_WIDTH - 294, 36);
         searchField.setFont(AppFonts.BODY);
         searchField.setForeground(AppColors.MUTED_TEXT);
+        configureSearchField();
         searchPanel.add(searchField);
 
         JButton search = ButtonStyles.primary("Search");
@@ -188,7 +194,7 @@ public class SuppliesPanel extends JPanel {
                 AppDialog.warning(this, "Enter supply name and category.");
                 return;
             }
-            int stock = ValidationUtil.parsePositiveInt(stockField.getText(), "Stock");
+            int stock = ValidationUtil.parseZeroOrPositiveInt(stockField.getText(), "Stock");
             int reorder = ValidationUtil.parsePositiveInt(reorderField.getText(), "Reorder level");
             OfficeSyncDatabase.addSupply(nameField.getText(), categoryField.getText(), stock, reorder);
             refresh();
@@ -212,7 +218,8 @@ public class SuppliesPanel extends JPanel {
                 + "\nCategory: " + tableModel.getValueAt(selectedRow, 2)
                 + "\nStock: " + tableModel.getValueAt(selectedRow, 3)
                 + "\nReorder Level: " + tableModel.getValueAt(selectedRow, 4)
-                + "\nStatus: " + tableModel.getValueAt(selectedRow, 5));
+                + "\nAvailability: " + tableModel.getValueAt(selectedRow, 5)
+                + "\nStatus: " + tableModel.getValueAt(selectedRow, 6));
     }
 
     private void editSupply() {
@@ -239,7 +246,7 @@ public class SuppliesPanel extends JPanel {
 
         try {
             int id = Integer.parseInt(tableModel.getValueAt(selectedRow, 0).toString());
-            int stock = ValidationUtil.parsePositiveInt(stockField.getText(), "Stock");
+            int stock = ValidationUtil.parseZeroOrPositiveInt(stockField.getText(), "Stock");
             int reorder = ValidationUtil.parsePositiveInt(reorderField.getText(), "Reorder level");
             OfficeSyncDatabase.updateSupply(id, nameField.getText(), categoryField.getText(), stock, reorder);
             refresh();
@@ -287,7 +294,7 @@ public class SuppliesPanel extends JPanel {
 
     private void loadSupplies(String query) {
         String normalized = query == null ? "" : query.trim();
-        boolean hasFilter = !normalized.isEmpty() && !normalized.equals("Search by supply name or category...");
+        boolean hasFilter = !normalized.isEmpty() && !normalized.equals(SEARCH_PLACEHOLDER);
         tableModel.setRowCount(0);
         for (Supply supply : currentSupplies) {
             if (hasFilter
@@ -301,6 +308,7 @@ public class SuppliesPanel extends JPanel {
                 supply.getCategory(),
                 supply.getStock(),
                 supply.getReorderLevel(),
+                supply.getAvailabilityStatus(),
                 supply.getStatus()
             });
         }
@@ -308,7 +316,7 @@ public class SuppliesPanel extends JPanel {
 
     private void refreshCards() {
         long lowStock = currentSupplies.stream().filter(supply -> "Low Stock".equals(supply.getStatus())).count();
-        long available = currentSupplies.size() - lowStock;
+        long available = currentSupplies.stream().filter(Supply::isAvailable).count();
         long categories = currentSupplies.stream().map(Supply::getCategory).distinct().count();
         totalCard.setValue(String.valueOf(currentSupplies.size()));
         lowStockCard.setValue(String.valueOf(lowStock));
@@ -318,16 +326,16 @@ public class SuppliesPanel extends JPanel {
 
     private JPanel supplyFormPanel(LabeledField nameField, LabeledField categoryField, LabeledField stockField, LabeledField reorderField) {
         JPanel panel = new JPanel(null);
-        panel.setPreferredSize(new java.awt.Dimension(430, 230));
+        panel.setPreferredSize(new java.awt.Dimension(560, 300));
         panel.setBackground(AppColors.SURFACE);
 
-        nameField.setBounds(18, 12, 390, 46);
-        categoryField.setBounds(18, 64, 390, 46);
-        stockField.setBounds(18, 116, 185, 46);
-        reorderField.setBounds(223, 116, 185, 46);
+        nameField.setBounds(24, 18, 512, 58);
+        categoryField.setBounds(24, 88, 512, 58);
+        stockField.setBounds(24, 158, 246, 58);
+        reorderField.setBounds(290, 158, 246, 58);
 
-        JLabel note = new JLabel("Stock and reorder level update the selected inventory record.");
-        note.setBounds(18, 178, 390, 28);
+        JLabel note = new JLabel("Stock of 0 automatically marks the supply as Not Active.");
+        note.setBounds(24, 232, 512, 28);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
 
@@ -337,5 +345,41 @@ public class SuppliesPanel extends JPanel {
         panel.add(reorderField);
         panel.add(note);
         return panel;
+    }
+
+    private void configureSearchField() {
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent event) {
+                if (SEARCH_PLACEHOLDER.equals(searchField.getText())) {
+                    searchField.setText("");
+                    searchField.setForeground(AppColors.TEXT);
+                }
+            }
+
+            @Override
+            public void focusLost(FocusEvent event) {
+                if (searchField.getText().trim().isEmpty()) {
+                    searchField.setText(SEARCH_PLACEHOLDER);
+                    searchField.setForeground(AppColors.MUTED_TEXT);
+                }
+            }
+        });
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent event) {
+                loadSupplies(searchField.getText());
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent event) {
+                loadSupplies(searchField.getText());
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent event) {
+                loadSupplies(searchField.getText());
+            }
+        });
     }
 }

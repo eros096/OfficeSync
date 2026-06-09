@@ -19,4 +19,16 @@ public final class ValidationUtil {
             throw new IllegalArgumentException(fieldName + " must be a valid number.");
         }
     }
+
+    public static int parseZeroOrPositiveInt(String value, String fieldName) {
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            if (parsed < 0) {
+                throw new IllegalArgumentException(fieldName + " must be zero or greater.");
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(fieldName + " must be a valid number.");
+        }
+    }
 }

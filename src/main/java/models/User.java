@@ -3,7 +3,6 @@ package models;
 public class User {
     public enum Role {
         ADMIN("Admin"),
-        DEPARTMENT_HEAD("Department Head"),
         EMPLOYEE("Employee");
 
         private final String displayName;
@@ -63,6 +62,9 @@ public class User {
     }
 
     public static Role roleFromDisplayName(String value) {
+        if ("Department Head".equalsIgnoreCase(value)) {
+            return Role.EMPLOYEE;
+        }
         for (Role role : Role.values()) {
             if (role.getDisplayName().equalsIgnoreCase(value)) {
                 return role;

@@ -60,8 +60,8 @@ public class LoginPanel extends JPanel {
         JLabel bullets = new JLabel("<html>"
                 + "- Monitor supplies<br>"
                 + "- Submit requests<br>"
-                + "- Approve requests by role<br>"
-                + "- View low stock reports"
+                + "- Admin approves and rejects requests<br>"
+                + "- View stock notifications"
                 + "</html>");
         bullets.setBounds(95, 345, 230, 110);
         bullets.setForeground(Color.WHITE);
