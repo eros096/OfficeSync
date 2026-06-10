@@ -6,9 +6,9 @@ OfficeSync is a Java Swing inventory system for managing office supplies and sup
 
 - Login with role-based access.
 - Dashboard summary for supplies, low-stock items, pending requests, and role scope.
-- Supplies management for inventory records, including inactive status when stock is 0.
-- Request submission, viewing, approval/rejection by Admin, and deletion.
-- Notifications for low-stock items, out-of-stock items, and pending request details.
+- Supplies management for inventory records.
+- Request submission, viewing, approval, rejection, and deletion.
+- Reports for low-stock and pending-request summaries.
 
 ## Project Structure
 
@@ -33,7 +33,7 @@ The app starts from `OfficeSync.java`, opens the login page, then shows the dash
 The UI panels do not open MySQL connections directly. They call one compact database helper:
 
 - `OfficeSyncDatabase.authenticate(...)` checks login credentials.
-- `OfficeSyncDatabase.findAllSupplies(...)`, `addSupply(...)`, `updateSupply(...)`, and `deleteSupply(...)` manage inventory records and keep `is_available` in sync with stock.
+- `OfficeSyncDatabase.findAllSupplies(...)`, `addSupply(...)`, `updateSupply(...)`, and `deleteSupply(...)` manage inventory records.
 - `OfficeSyncDatabase.findVisibleRequests(...)`, `submitRequest(...)`, `updateRequestStatus(...)`, and `deleteRequest(...)` manage requests.
 
 The database helper returns model objects such as `User`, `Supply`, and `SupplyRequest`. This keeps database code separate from the Swing UI while keeping the number of Java files smaller.
@@ -43,9 +43,6 @@ The database helper returns model objects such as `User`, `Supply`, and `SupplyR
 1. Start MySQL.
 2. Run `database/officesync.sql` in MySQL Workbench, phpMyAdmin, or the MySQL command line.
 3. Check the credentials at the top of `src/main/java/Database/OfficeSyncDatabase.java`.
-
-If you already created the database before the `is_available` field was added, run `database/add_is_available_to_supplies.sql` once instead of rebuilding the whole database.
-If your database still has `Department Head` users, run `database/combine_department_head_with_employee.sql` once to convert them to `Employee`.
 4. Build/run the project with Maven or NetBeans.
 
 Default local database settings:
@@ -61,7 +58,7 @@ Default login accounts all use password `1234`:
 | Role | Email |
 | --- | --- |
 | Admin | `admin@officesync.local` |
-| Employee | `head@officesync.local` |
+| Department Head | `head@officesync.local` |
 | Employee | `employee@officesync.local` |
 | Employee | `maria@officesync.local` |
 
@@ -70,7 +67,7 @@ For a deeper database explanation, see `docs/DATABASE.md`.
 ## Role Rules
 
 - Admin can see all requests and manage supplies.
-- Admin can approve and reject requests.
-- Employee can see only their own requests and cannot approve or reject.
+- Department Head can see requests from users in the same department.
+- Employee can see only their own requests.
 
 These rules are applied in `OfficeSyncDatabase.findVisibleRequests(...)` and `OfficeSyncDatabase.countPendingRequestsFor(...)`.

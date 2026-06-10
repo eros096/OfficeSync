@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="760" viewBox="0 0 1100 760">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .box { fill: #ffffff; stroke: #1f4e79; stroke-width: 2; rx: 10; }
+      .head { fill: #1f4e79; }
+      .title { fill: #ffffff; font: 700 18px Arial, sans-serif; }
+      .field { fill: #1f2937; font: 15px Arial, sans-serif; }
+      .key { fill: #0f766e; font: 700 15px Arial, sans-serif; }
+      .line { stroke: #374151; stroke-width: 2; fill: none; }
+      .rel { fill: #374151; font: 700 14px Arial, sans-serif; }
+      .caption { fill: #111827; font: 700 26px Arial, sans-serif; }
+      .subcaption { fill: #4b5563; font: 15px Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="760"/>
+  <text class="caption" x="550" y="46" text-anchor="middle">OfficeSync Entity Relationship Diagram</text>
+  <text class="subcaption" x="550" y="72" text-anchor="middle">Inventory Management System for Office Supplies</text>
+
+  <!-- Departments -->
+  <g transform="translate(60 130)">
+    <rect class="box" x="0" y="0" width="250" height="150"/>
+    <rect class="head" x="0" y="0" width="250" height="44" rx="10"/>
+    <text class="title" x="125" y="28" text-anchor="middle">DEPARTMENTS</text>
+    <text class="key" x="18" y="74">PK department_id</text>
+    <text class="field" x="18" y="104">department_name</text>
+  </g>
+
+  <!-- Users -->
+  <g transform="translate(425 110)">
+    <rect class="box" x="0" y="0" width="270" height="230"/>
+    <rect class="head" x="0" y="0" width="270" height="44" rx="10"/>
+    <text class="title" x="135" y="28" text-anchor="middle">USERS</text>
+    <text class="key" x="18" y="74">PK user_id</text>
+    <text class="field" x="18" y="104">full_name</text>
+    <text class="field" x="18" y="134">email</text>
+    <text class="field" x="18" y="164">password_hash</text>
+    <text class="field" x="18" y="194">role</text>
+    <text class="key" x="18" y="224">FK department_id</text>
+  </g>
+
+  <!-- Requests -->
+  <g transform="translate(790 130)">
+    <rect class="box" x="0" y="0" width="250" height="180"/>
+    <rect class="head" x="0" y="0" width="250" height="44" rx="10"/>
+    <text class="title" x="125" y="28" text-anchor="middle">REQUESTS</text>
+    <text class="key" x="18" y="74">PK request_id</text>
+    <text class="key" x="18" y="104">FK user_id</text>
+    <text class="field" x="18" y="134">request_date</text>
+    <text class="field" x="18" y="164">status</text>
+  </g>
+
+  <!-- Supplies -->
+  <g transform="translate(80 470)">
+    <rect class="box" x="0" y="0" width="300" height="230"/>
+    <rect class="head" x="0" y="0" width="300" height="44" rx="10"/>
+    <text class="title" x="150" y="28" text-anchor="middle">SUPPLIES</text>
+    <text class="key" x="18" y="74">PK supply_id</text>
+    <text class="field" x="18" y="104">supply_name</text>
+    <text class="field" x="18" y="134">category</text>
+    <text class="field" x="18" y="164">quantity_in_stock</text>
+    <text class="field" x="18" y="194">reorder_level</text>
+    <text class="field" x="18" y="224">is_available</text>
+  </g>
+
+  <!-- Request Details -->
+  <g transform="translate(690 455)">
+    <rect class="box" x="0" y="0" width="300" height="210"/>
+    <rect class="head" x="0" y="0" width="300" height="44" rx="10"/>
+    <text class="title" x="150" y="28" text-anchor="middle">REQUEST_DETAILS</text>
+    <text class="key" x="18" y="74">PK request_detail_id</text>
+    <text class="key" x="18" y="104">FK request_id</text>
+    <text class="key" x="18" y="134">FK supply_id</text>
+    <text class="field" x="18" y="164">quantity_requested</text>
+  </g>
+
+  <!-- Relationship lines -->
+  <path class="line" d="M310 205 L425 205"/>
+  <text class="rel" x="332" y="190">1</text>
+  <text class="rel" x="397" y="190">M</text>
+  <text class="subcaption" x="367" y="232" text-anchor="middle">has</text>
+
+  <path class="line" d="M695 220 L790 220"/>
+  <text class="rel" x="716" y="205">1</text>
+  <text class="rel" x="764" y="205">M</text>
+  <text class="subcaption" x="742" y="247" text-anchor="middle">submits</text>
+
+  <path class="line" d="M915 310 L915 455"/>
+  <text class="rel" x="928" y="335">1</text>
+  <text class="rel" x="928" y="438">M</text>
+  <text class="subcaption" x="948" y="386">contains</text>
+
+  <path class="line" d="M380 585 L690 585"/>
+  <text class="rel" x="405" y="570">1</text>
+  <text class="rel" x="663" y="570">M</text>
+  <text class="subcaption" x="535" y="612" text-anchor="middle">requested item</text>
+</svg>

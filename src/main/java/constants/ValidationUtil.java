@@ -20,11 +20,11 @@ public final class ValidationUtil {
         }
     }
 
-    public static int parseZeroOrPositiveInt(String value, String fieldName) {
+    public static int parseNonNegativeInt(String value, String fieldName) {
         try {
             int parsed = Integer.parseInt(value.trim());
             if (parsed < 0) {
-                throw new IllegalArgumentException(fieldName + " must be zero or greater.");
+                throw new IllegalArgumentException(fieldName + " must not be negative.");
             }
             return parsed;
         } catch (NumberFormatException ex) {

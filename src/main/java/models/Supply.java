@@ -41,12 +41,8 @@ public class Supply {
         return available;
     }
 
-    public String getAvailabilityStatus() {
-        return available ? "Active" : "Not Active";
-    }
-
     public String getStatus() {
-        if (!available) {
+        if (!available || stock <= 0) {
             return "Out of Stock";
         }
         return stock <= reorderLevel ? "Low Stock" : "Available";

@@ -1,6 +1,5 @@
 panels\RequestsPanel.class
 Database\OfficeSyncDatabase.class
-panels\RequestsPanel$1.class
 constants\LabeledField.class
 panels\RequestsPanel$SupplyOption.class
 constants\AppFonts.class
@@ -13,7 +12,6 @@ controls\DashboardPage.class
 constants\TablePanel$StatusRenderer.class
 models\User$Role.class
 com\mycompany\officesync\OfficeSync.class
-panels\SuppliesPanel$2.class
 constants\TablePanel$HeaderRenderer.class
 constants\ValidationUtil.class
 panels\LoginPanel.class
@@ -23,7 +21,5 @@ models\Supply.class
 panels\OverviewPanel.class
 constants\AppColors.class
 constants\PanelCard.class
-panels\SuppliesPanel$1.class
-panels\RequestsPanel$2.class
 constants\ButtonStyles.class
 panels\SuppliesPanel.class

@@ -18,52 +18,33 @@ import models.SupplyRequest;
 import models.User;
 
 public class ReportsPanel extends JPanel {
-
     private static final int CONTENT_X = 28;
     private static final int CONTENT_WIDTH = 1564;
     private static final int CARD_WIDTH = 380;
     private static final int CARD_GAP = 14;
-
     private final User user;
-
-    private final DefaultTableModel reportModel = new DefaultTableModel();
-
-    private final PanelCard lowStockCard =
-            new PanelCard("Low Stock", "0", AppColors.DANGER);
-
-    private final PanelCard pendingCard =
-            new PanelCard("Pending", "0", AppColors.WARNING);
-
-    private final PanelCard outStockCard =
-            new PanelCard("Out of Stock", "0", AppColors.DANGER);
-
-    private final PanelCard statusCard =
-            new PanelCard("Notifications", "Ready", AppColors.SUCCESS);
-
-    private final JComboBox<String> notificationFilter =
-            new JComboBox<>(new String[]{
-                "Low Stock",
-                "Out of Stock",
-                "Pending Requests",
-                "Approved Requests",
-                "Rejected Requests"
-            });
-
+    private final DefaultTableModel reportModel = new DefaultTableModel(
+            new Object[]{"Type", "Name", "Department/Category", "Supply", "Qty/Stock", "Date/Reorder", "Status"}, 0
+    );
+    private final JComboBox<String> reportFilter = new JComboBox<>(
+            new String[]{"All", "Low Stock", "Out of Stock", "Pending Requests", "Approved Requests", "Rejected Requests"}
+    );
+    private final PanelCard lowStockCard = new PanelCard("Low Stock", "0", AppColors.DANGER);
+    private final PanelCard pendingCard = new PanelCard("Pending", "0", AppColors.WARNING);
+    private final PanelCard outStockCard = new PanelCard("Out of Stock", "0", AppColors.DANGER);
+    private final PanelCard statusCard = new PanelCard("Reports", "Ready", AppColors.SUCCESS);
+    private TablePanel tablePanel;
     private List<Supply> currentSupplies = new ArrayList<>();
     private List<SupplyRequest> currentRequests = new ArrayList<>();
 
-    private TablePanel reportTable;
-
     public ReportsPanel(User user) {
         this.user = user;
-
         setLayout(null);
         setBackground(AppColors.BACKGROUND);
-
         buildHeader();
         buildCards();
+        buildFilter();
         buildTable();
-
         refresh();
     }
 
@@ -71,187 +52,114 @@ public class ReportsPanel extends JPanel {
         try {
             currentSupplies = OfficeSyncDatabase.findAllSupplies();
             currentRequests = OfficeSyncDatabase.findVisibleRequests(user);
-
-            int lowStock = countLowStock();
-            int outStock = countOutOfStock();
-            int pending = OfficeSyncDatabase.countPendingRequestsFor(user);
-
-            lowStockCard.setValue(String.valueOf(lowStock));
-            outStockCard.setValue(String.valueOf(outStock));
-            pendingCard.setValue(String.valueOf(pending));
+            lowStockCard.setValue(String.valueOf(countLowStock()));
+            outStockCard.setValue(String.valueOf(countOutOfStock()));
+            pendingCard.setValue(String.valueOf(countRequestsByStatus("Pending")));
             statusCard.setValue("Ready");
-
-            reloadTable();
-
+            repaintReportTable();
         } catch (SQLException ex) {
             statusCard.setValue("Error");
-
-            AppDialog.error(
-                    this,
-                    "Unable to load notifications:\n" + ex.getMessage()
-            );
+            AppDialog.error(this, "Unable to load reports:\n" + ex.getMessage());
         }
     }
 
     private void buildHeader() {
-        JLabel title = new JLabel("Inventory Notifications");
+        JLabel title = new JLabel("Inventory Reports");
         title.setBounds(28, 20, 360, 34);
         title.setFont(AppFonts.HEADING);
         title.setForeground(AppColors.TEXT);
         add(title);
 
-        JLabel subtitle = new JLabel(
-                "Review low-stock alerts, out-of-stock items, and request details."
-        );
-        subtitle.setBounds(28, 52, 600, 24);
+        JLabel subtitle = new JLabel("Review stock alerts and request records.");
+        subtitle.setBounds(28, 52, 520, 24);
         subtitle.setFont(AppFonts.BODY);
         subtitle.setForeground(AppColors.MUTED_TEXT);
         add(subtitle);
     }
 
     private void buildCards() {
-
-        lowStockCard.setBounds(
-                CONTENT_X,
-                96,
-                CARD_WIDTH,
-                88
-        );
-
-        pendingCard.setBounds(
-                CONTENT_X + (CARD_WIDTH + CARD_GAP),
-                96,
-                CARD_WIDTH,
-                88
-        );
-
-        outStockCard.setBounds(
-                CONTENT_X + (CARD_WIDTH + CARD_GAP) * 2,
-                96,
-                CARD_WIDTH,
-                88
-        );
-
-        statusCard.setBounds(
-                CONTENT_X + (CARD_WIDTH + CARD_GAP) * 3,
-                96,
-                CARD_WIDTH,
-                88
-        );
-
+        lowStockCard.setBounds(CONTENT_X, 96, CARD_WIDTH, 88);
+        pendingCard.setBounds(CONTENT_X + (CARD_WIDTH + CARD_GAP), 96, CARD_WIDTH, 88);
+        outStockCard.setBounds(CONTENT_X + (CARD_WIDTH + CARD_GAP) * 2, 96, CARD_WIDTH, 88);
+        statusCard.setBounds(CONTENT_X + (CARD_WIDTH + CARD_GAP) * 3, 96, CARD_WIDTH, 88);
         add(lowStockCard);
         add(pendingCard);
         add(outStockCard);
         add(statusCard);
     }
 
-    private void buildTable() {
+    private void buildFilter() {
+        JPanel filterPanel = new JPanel(null);
+        filterPanel.setBounds(CONTENT_X, 214, CONTENT_WIDTH, 74);
+        filterPanel.setBackground(AppColors.SURFACE);
+        filterPanel.setBorder(javax.swing.BorderFactory.createLineBorder(AppColors.BORDER));
+        add(filterPanel);
 
-        notificationFilter.setBounds(
-                CONTENT_X,
-                210,
-                230,
-                34
-        );
+        JLabel filterLabel = new JLabel("Report Filter");
+        filterLabel.setBounds(20, 12, 150, 22);
+        filterLabel.setFont(AppFonts.LABEL);
+        filterLabel.setForeground(AppColors.TEXT);
+        filterPanel.add(filterLabel);
 
-        notificationFilter.setFont(AppFonts.BODY);
-        notificationFilter.setSelectedItem("Low Stock");
-        notificationFilter.addActionListener(event -> reloadTable());
-
-        add(notificationFilter);
-
-        reportTable = new TablePanel(
-                "Report Records",
-                reportModel,
-                250
-        );
-
-        reportTable.setBounds(
-                CONTENT_X,
-                254,
-                CONTENT_WIDTH,
-                678
-        );
-
-        add(reportTable);
+        reportFilter.setBounds(20, 36, 250, 30);
+        reportFilter.setFont(AppFonts.BODY);
+        reportFilter.addActionListener(event -> repaintReportTable());
+        filterPanel.add(reportFilter);
     }
 
-    private void reloadTable() {
+    private void buildTable() {
+        tablePanel = new TablePanel("Report Records", reportModel, 330);
+        tablePanel.setBounds(CONTENT_X, 308, CONTENT_WIDTH, 606);
+        add(tablePanel);
+    }
 
-        String filter = currentFilter();
+    private void repaintReportTable() {
+        reportModel.setRowCount(0);
+        String selectedFilter = currentFilter();
 
-        if ("Low Stock".equals(filter)
-                || "Out of Stock".equals(filter)) {
-
-            loadStockTable(filter);
-
-        } else {
-
-            loadRequestTable(filter);
+        if ("All".equals(selectedFilter) || "Low Stock".equals(selectedFilter) || "Out of Stock".equals(selectedFilter)) {
+            loadStockRows(selectedFilter);
         }
 
-        revalidate();
-        repaint();
+        if ("All".equals(selectedFilter) || selectedFilter.endsWith(" Requests")) {
+            loadRequestRows(selectedFilter);
+        }
+
+        if (tablePanel != null) {
+            tablePanel.getTable().clearSelection();
+            tablePanel.getTable().revalidate();
+            tablePanel.getTable().repaint();
+        }
     }
 
-    private void loadStockTable(String filter) {
-
-        reportModel.setRowCount(0);
-        reportModel.setColumnCount(0);
-
-        reportModel.setColumnIdentifiers(new Object[]{
-            "Supply",
-            "Category",
-            "Stock",
-            "Reorder Level",
-            "Notification"
-        });
-
+    private void loadStockRows(String selectedFilter) {
         for (Supply supply : currentSupplies) {
-
-            String notification = stockNotificationFor(supply);
-
-            if (notification.isEmpty()) {
+            String reportStatus = stockReportStatusFor(supply);
+            if (reportStatus.isEmpty()) {
                 continue;
             }
-
-            if (!notification.equals(filter)) {
+            if (!"All".equals(selectedFilter) && !reportStatus.equals(selectedFilter)) {
                 continue;
             }
-
             reportModel.addRow(new Object[]{
+                "Stock",
                 supply.getName(),
                 supply.getCategory(),
+                supply.getName(),
                 supply.getStock(),
                 supply.getReorderLevel(),
-                notification
+                reportStatus
             });
         }
     }
 
-    private void loadRequestTable(String filter) {
-
-        reportModel.setRowCount(0);
-        reportModel.setColumnCount(0);
-
-        reportModel.setColumnIdentifiers(new Object[]{
-            "Request ID",
-            "Requester",
-            "Department",
-            "Supply",
-            "Qty",
-            "Date",
-            "Status"
-        });
-
+    private void loadRequestRows(String selectedFilter) {
         for (SupplyRequest request : currentRequests) {
-
-            if (!shouldShowRequest(request, filter)) {
+            if (!shouldShowRequest(request, selectedFilter)) {
                 continue;
             }
-
             reportModel.addRow(new Object[]{
-                "R" + String.format("%03d", request.getRequestId()),
+                "Request",
                 request.getRequester(),
                 request.getDepartment(),
                 request.getSupplyName(),
@@ -262,59 +170,43 @@ public class ReportsPanel extends JPanel {
         }
     }
 
-    private boolean shouldShowRequest(
-            SupplyRequest request,
-            String selectedFilter
-    ) {
-
-        if ("Pending Requests".equals(selectedFilter)) {
-            return request.getStatus().equalsIgnoreCase("Pending");
+    private boolean shouldShowRequest(SupplyRequest request, String selectedFilter) {
+        if ("All".equals(selectedFilter)) {
+            return true;
         }
-
-        if ("Approved Requests".equals(selectedFilter)) {
-            return request.getStatus().equalsIgnoreCase("Approved");
-        }
-
-        if ("Rejected Requests".equals(selectedFilter)) {
-            return request.getStatus().equalsIgnoreCase("Rejected");
-        }
-
-        return false;
+        String status = selectedFilter.replace(" Requests", "");
+        return request.getStatus().equalsIgnoreCase(status);
     }
 
     private String currentFilter() {
-        Object selected = notificationFilter.getSelectedItem();
-        return selected == null
-                ? "Low Stock"
-                : selected.toString();
+        return reportFilter.getSelectedItem() == null ? "All" : reportFilter.getSelectedItem().toString();
     }
 
     private int countLowStock() {
         return (int) currentSupplies.stream()
-                .filter(supply ->
-                        "Low Stock".equals(stockNotificationFor(supply)))
+                .filter(supply -> "Low Stock".equals(stockReportStatusFor(supply)))
                 .count();
     }
 
     private int countOutOfStock() {
         return (int) currentSupplies.stream()
-                .filter(supply ->
-                        "Out of Stock".equals(stockNotificationFor(supply)))
+                .filter(supply -> "Out of Stock".equals(stockReportStatusFor(supply)))
                 .count();
     }
 
-    private String stockNotificationFor(Supply supply) {
+    private int countRequestsByStatus(String status) {
+        return (int) currentRequests.stream()
+                .filter(request -> request.getStatus().equalsIgnoreCase(status))
+                .count();
+    }
 
-        if (!supply.isAvailable()
-                || supply.getStock() <= 0) {
+    private String stockReportStatusFor(Supply supply) {
+        if (!supply.isAvailable() || supply.getStock() <= 0) {
             return "Out of Stock";
         }
-
-        if (supply.getStock()
-                <= supply.getReorderLevel()) {
+        if (supply.getStock() <= supply.getReorderLevel()) {
             return "Low Stock";
         }
-
         return "";
     }
 }

@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS supplies;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS departments;
 
--- Departments group users by business unit.
+-- Departments group users and control what Department Head accounts can see.
 CREATE TABLE departments (
     department_id INT PRIMARY KEY AUTO_INCREMENT,
     department_name VARCHAR(100) NOT NULL UNIQUE
@@ -26,8 +26,7 @@ CREATE TABLE users (
 );
 
 -- Supplies are inventory items. The app marks an item as low stock when
--- quantity_in_stock is less than or equal to reorder_level. The app marks
--- is_available as false when quantity_in_stock is 0.
+-- is_available is true and quantity_in_stock is less than or equal to reorder_level.
 CREATE TABLE supplies (
     supply_id INT PRIMARY KEY AUTO_INCREMENT,
     supply_name VARCHAR(100) NOT NULL,
@@ -65,7 +64,7 @@ INSERT INTO departments (department_name) VALUES
 
 INSERT INTO users (full_name, email, password_hash, role, department_id) VALUES
 ('Alyssa Reyes', 'admin@officesync.local', SHA2('1234', 256), 'Admin', 1),
-('Marco Santos', 'head@officesync.local', SHA2('1234', 256), 'Employee', 2),
+('Marco Santos', 'head@officesync.local', SHA2('1234', 256), 'Department Head', 2),
 ('Juan Dela Cruz', 'employee@officesync.local', SHA2('1234', 256), 'Employee', 4),
 ('Maria Santos', 'maria@officesync.local', SHA2('1234', 256), 'Employee', 3);
 

@@ -30,10 +30,6 @@ public class DashboardPanel extends JPanel {
     private JButton requestsButton;
     private JButton reportsButton;
     private JButton logoutButton;
-    private OverviewPanel overviewPanel;
-    private SuppliesPanel suppliesPanel;
-    private RequestsPanel requestsPanel;
-    private ReportsPanel reportsPanel;
 
     public DashboardPanel(JFrame parentFrame, User user) {
         this.parentFrame = parentFrame;
@@ -43,7 +39,6 @@ public class DashboardPanel extends JPanel {
         buildTopPanel();
         buildSidePanel();
         buildPages();
-        showPage(dashboardButton, "dashboard");
     }
 
     private void buildTopPanel() {
@@ -85,8 +80,8 @@ public class DashboardPanel extends JPanel {
         requestsButton.addActionListener(event -> showPage(requestsButton, "requests"));
         y += 55;
 
-        if (user.getRole() == User.Role.ADMIN) {
-            reportsButton = createSideButton("Notifications", y, side);
+        if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            reportsButton = createSideButton("Reports", y, side);
             reportsButton.addActionListener(event -> showPage(reportsButton, "reports"));
         }
 
@@ -96,6 +91,7 @@ public class DashboardPanel extends JPanel {
             parentFrame.dispose();
         });
 
+        showPage(dashboardButton, "dashboard");
     }
 
     private JButton createSideButton(String text, int y, JPanel side) {
@@ -119,17 +115,12 @@ public class DashboardPanel extends JPanel {
         container.setBackground(AppColors.BACKGROUND);
         add(container);
 
-        overviewPanel = new OverviewPanel(user, this::selectPage);
-        suppliesPanel = new SuppliesPanel(user);
-        requestsPanel = new RequestsPanel(user);
+        container.add(new OverviewPanel(user, this::selectPage), "dashboard");
+        container.add(new SuppliesPanel(user), "supplies");
+        container.add(new RequestsPanel(user), "requests");
 
-        container.add(overviewPanel, "dashboard");
-        container.add(suppliesPanel, "supplies");
-        container.add(requestsPanel, "requests");
-
-        if (user.getRole() == User.Role.ADMIN) {
-            reportsPanel = new ReportsPanel(user);
-            container.add(reportsPanel, "reports");
+        if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            container.add(new ReportsPanel(user), "reports");
         }
     }
 
@@ -139,20 +130,7 @@ public class DashboardPanel extends JPanel {
         }
         activeButton = button;
         activeButton.setBackground(AppColors.HEADER);
-        refreshPage(pageName);
         cardLayout.show(container, pageName);
-    }
-
-    private void refreshPage(String pageName) {
-        if ("dashboard".equals(pageName) && overviewPanel != null) {
-            overviewPanel.refresh();
-        } else if ("supplies".equals(pageName) && suppliesPanel != null) {
-            suppliesPanel.refresh();
-        } else if ("requests".equals(pageName) && requestsPanel != null) {
-            requestsPanel.refresh();
-        } else if ("reports".equals(pageName) && reportsPanel != null) {
-            reportsPanel.refresh();
-        }
     }
 
     private void selectPage(String pageName) {

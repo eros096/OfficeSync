@@ -36,9 +36,8 @@ public class OverviewPanel extends JPanel {
 
     public void refresh() {
         try {
-            int[] supplySummary = OfficeSyncDatabase.countSupplySummary();
-            suppliesCard.setValue(String.valueOf(supplySummary[0]));
-            lowStockCard.setValue(String.valueOf(supplySummary[1]));
+            suppliesCard.setValue(String.valueOf(OfficeSyncDatabase.countSupplies()));
+            lowStockCard.setValue(String.valueOf(OfficeSyncDatabase.countLowStockSupplies()));
             pendingCard.setValue(String.valueOf(OfficeSyncDatabase.countPendingRequestsFor(user)));
             roleCard.setValue(user.getRole().getDisplayName());
         } catch (SQLException ex) {
@@ -81,7 +80,7 @@ public class OverviewPanel extends JPanel {
                 + "<b>Logged in as:</b> " + user.getFullName() + "<br><br>"
                 + "<b>Department:</b> " + user.getDepartment() + "<br><br>"
                 + "<b>Role:</b> " + user.getRole().getDisplayName() + "<br><br>"
-                + "Use the side menu to manage supplies, requests, and notifications."
+                + "Use the side menu to manage supplies, requests, and reports."
                 + "</html>");
         account.setBounds(34, 78, 620, 180);
         account.setFont(AppFonts.BODY);
@@ -99,12 +98,12 @@ public class OverviewPanel extends JPanel {
         supplies.addActionListener(event -> navigate.accept("supplies"));
         actions.add(supplies);
 
-        JButton requests = quickButton(user.getRole() == User.Role.ADMIN ? "Review Requests" : "Submit Request", buttonX, 142, AppColors.SUCCESS);
+        JButton requests = quickButton(user.getRole() == User.Role.EMPLOYEE ? "Submit Request" : "Review Requests", buttonX, 142, AppColors.SUCCESS);
         requests.addActionListener(event -> navigate.accept("requests"));
         actions.add(requests);
 
-        if (user.getRole() == User.Role.ADMIN) {
-            JButton reports = quickButton("View Notifications", buttonX, 202, AppColors.WARNING);
+        if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            JButton reports = quickButton("View Reports", buttonX, 202, AppColors.WARNING);
             reports.setForeground(AppColors.TEXT);
             reports.addActionListener(event -> navigate.accept("reports"));
             actions.add(reports);

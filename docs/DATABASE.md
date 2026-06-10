@@ -14,13 +14,6 @@ The schema and sample data are in:
 database/officesync.sql
 ```
 
-Existing databases can be updated without deleting data by running:
-
-```text
-database/add_is_available_to_supplies.sql
-database/combine_department_head_with_employee.sql
-```
-
 ## Tables
 
 ### departments
@@ -42,10 +35,10 @@ Stores login accounts and role information.
 | `full_name` | User display name. |
 | `email` | Login email, unique. |
 | `password_hash` | SHA-256 password hash. |
-| `role` | `Admin` or `Employee`. |
+| `role` | `Admin`, `Department Head`, or `Employee`. |
 | `department_id` | Foreign key to `departments`. |
 
-The Java `User.Role` enum uses `Admin` and `Employee`. Existing `Department Head` rows are treated as `Employee` for compatibility.
+The Java `User.Role` enum must match the role names stored in this table.
 
 ### supplies
 
@@ -58,19 +51,15 @@ Stores inventory items.
 | `category` | Group such as Paper, Writing, Filing. |
 | `quantity_in_stock` | Current stock count. |
 | `reorder_level` | Minimum desired stock level. |
-| `is_available` | `TRUE` when stock is greater than 0, otherwise `FALSE`. |
-
-The app treats a supply as `Not Active` when:
-
-```sql
-quantity_in_stock = 0
-```
+| `is_available` | Whether the item is active/available for requests. |
 
 The app treats a supply as `Low Stock` when:
 
 ```sql
 is_available = TRUE AND quantity_in_stock <= reorder_level
 ```
+
+The app treats a supply as `Out of Stock` when `is_available = FALSE` or `quantity_in_stock <= 0`.
 
 ### requests
 
@@ -158,9 +147,9 @@ This file contains the connection settings, connection helper, password hashing,
 `OfficeSyncDatabase` handles inventory records with these methods:
 
 - `findAllSupplies()` lists supplies.
-- `findLowStockSupplies()` lists active supplies where stock is less than or equal to reorder level.
-- `addSupply(...)` inserts a new supply and stores `is_available` based on stock.
-- `updateSupply(...)` edits a supply and updates `is_available` based on stock.
+- `findLowStockSupplies()` lists supplies where stock is less than or equal to reorder level.
+- `addSupply(...)` inserts a new supply.
+- `updateSupply(...)` edits a supply.
 - `deleteSupply(...)` deletes a supply.
 - `countSupplies()` and `countLowStockSupplies()` feed dashboard/report cards.
 
@@ -170,7 +159,7 @@ This file contains the connection settings, connection helper, password hashing,
 
 - `findVisibleRequests(user)` lists requests based on the logged-in user's role.
 - `submitRequest(...)` inserts into both `requests` and `request_details` inside one transaction.
-- `updateRequestStatus(...)` changes request status to approved/rejected for Admin users.
+- `updateRequestStatus(...)` changes request status to approved/rejected.
 - `deleteRequest(...)` deletes detail rows first, then the request row, inside one transaction.
 - `countPendingRequestsFor(user)` counts pending requests using the same role visibility rules.
 
@@ -179,6 +168,7 @@ This file contains the connection settings, connection helper, password hashing,
 | Role | What They Can See |
 | --- | --- |
 | Admin | All requests. |
+| Department Head | Requests from their own department. |
 | Employee | Only their own requests. |
 
 This logic is in `OfficeSyncDatabase.findVisibleRequests(...)`.

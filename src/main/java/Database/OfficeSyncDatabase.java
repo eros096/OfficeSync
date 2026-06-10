@@ -155,24 +155,6 @@ public final class OfficeSyncDatabase {
         return count("SELECT COUNT(*) FROM supplies WHERE is_available = TRUE AND quantity_in_stock <= reorder_level");
     }
 
-    public static int[] countSupplySummary() throws SQLException {
-        String sql = """
-                SELECT COUNT(*) AS total_supplies,
-                       SUM(CASE WHEN is_available = TRUE AND quantity_in_stock <= reorder_level THEN 1 ELSE 0 END) AS low_stock_supplies
-                FROM supplies
-                """;
-
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
-            result.next();
-            return new int[]{
-                    result.getInt("total_supplies"),
-                    result.getInt("low_stock_supplies")
-            };
-        }
-    }
-
     public static List<SupplyRequest> findVisibleRequests(User user) throws SQLException {
         StringBuilder sql = new StringBuilder("""
                 SELECT r.request_id, u.full_name, u.department_id, d.department_name,
@@ -186,6 +168,8 @@ public final class OfficeSyncDatabase {
 
         if (user.getRole() == User.Role.EMPLOYEE) {
             sql.append(" WHERE u.user_id = ?");
+        } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            sql.append(" WHERE u.department_id = ?");
         }
         sql.append(" ORDER BY r.request_date DESC, r.request_id DESC");
 
@@ -194,6 +178,8 @@ public final class OfficeSyncDatabase {
              PreparedStatement statement = connection.prepareStatement(sql.toString())) {
             if (user.getRole() == User.Role.EMPLOYEE) {
                 statement.setInt(1, user.getId());
+            } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+                statement.setInt(1, user.getDepartmentId());
             }
 
             try (ResultSet result = statement.executeQuery()) {
@@ -238,72 +224,13 @@ public final class OfficeSyncDatabase {
     }
 
     public static void updateRequestStatus(int requestId, String status) throws SQLException {
-        String requestSummarySql = """
-                SELECT r.status,
-                       COUNT(rd.request_detail_id) AS detail_count,
-                       SUM(CASE WHEN s.quantity_in_stock >= rd.quantity_requested THEN 1 ELSE 0 END) AS enough_stock_count
-                FROM requests r
-                LEFT JOIN request_details rd ON rd.request_id = r.request_id
-                LEFT JOIN supplies s ON s.supply_id = rd.supply_id
-                WHERE r.request_id = ?
-                GROUP BY r.request_id, r.status
-                """;
-        String updateStockSql = """
-                UPDATE supplies s
-                INNER JOIN request_details rd ON rd.supply_id = s.supply_id
-                SET s.quantity_in_stock = s.quantity_in_stock - rd.quantity_requested,
-                    s.is_available = (s.quantity_in_stock - rd.quantity_requested) > 0
-                WHERE rd.request_id = ?
-                """;
-        String updateRequestSql = "UPDATE requests SET status = ? WHERE request_id = ?";
+        String sql = "UPDATE requests SET status = ? WHERE request_id = ?";
 
-        try (Connection connection = getConnection()) {
-            connection.setAutoCommit(false);
-            try {
-                String currentStatus;
-                int detailCount;
-                int enoughStockCount;
-                try (PreparedStatement statement = connection.prepareStatement(requestSummarySql)) {
-                    statement.setInt(1, requestId);
-                    try (ResultSet result = statement.executeQuery()) {
-                        if (!result.next()) {
-                            throw new SQLException("Request not found.");
-                        }
-                        currentStatus = result.getString("status");
-                        detailCount = result.getInt("detail_count");
-                        enoughStockCount = result.getInt("enough_stock_count");
-                    }
-                }
-
-                if ("Approved".equalsIgnoreCase(status) && !"Approved".equalsIgnoreCase(currentStatus)) {
-                    if (detailCount == 0) {
-                        throw new SQLException("Request has no supply details.");
-                    }
-                    if (enoughStockCount != detailCount) {
-                        throw new SQLException("Not enough stock to approve this request.");
-                    }
-
-                    try (PreparedStatement stockStatement = connection.prepareStatement(updateStockSql)) {
-                        stockStatement.setInt(1, requestId);
-                        int updatedRows = stockStatement.executeUpdate();
-                        if (updatedRows != detailCount) {
-                            throw new SQLException("Not enough stock to approve this request.");
-                        }
-                    }
-                }
-
-                try (PreparedStatement statement = connection.prepareStatement(updateRequestSql)) {
-                    statement.setString(1, status);
-                    statement.setInt(2, requestId);
-                    statement.executeUpdate();
-                }
-                connection.commit();
-            } catch (SQLException ex) {
-                connection.rollback();
-                throw ex;
-            } finally {
-                connection.setAutoCommit(true);
-            }
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, status);
+            statement.setInt(2, requestId);
+            statement.executeUpdate();
         }
     }
 
@@ -339,12 +266,16 @@ public final class OfficeSyncDatabase {
                 """);
         if (user.getRole() == User.Role.EMPLOYEE) {
             sql.append(" AND u.user_id = ?");
+        } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            sql.append(" AND u.department_id = ?");
         }
 
         try (Connection connection = getConnection();
              PreparedStatement statement = connection.prepareStatement(sql.toString())) {
             if (user.getRole() == User.Role.EMPLOYEE) {
                 statement.setInt(1, user.getId());
+            } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+                statement.setInt(1, user.getDepartmentId());
             }
 
             try (ResultSet result = statement.executeQuery()) {
