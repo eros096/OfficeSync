@@ -145,16 +145,6 @@ public class LoginPanel extends JPanel {
         login.addActionListener(event -> login());
         card.add(login);
 
-        JButton help = new JButton("Forgot Password?");
-        help.setBounds(55, 395, 330, 30);
-        help.setForeground(AppColors.HEADER);
-        help.setFont(AppFonts.BODY);
-        help.setContentAreaFilled(false);
-        help.setBorderPainted(false);
-        help.setFocusPainted(false);
-        help.addActionListener(event -> AppDialog.info(this, "Please contact your administrator to reset your password."));
-        card.add(help);
-
         JLabel demo = new JLabel("<html>"
                 + "<b>Demo accounts</b><br>"
                 + "Admin: admin@officesync.local<br>"
