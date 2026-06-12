@@ -20,13 +20,15 @@ public class LabeledField extends JPanel {
         super(new BorderLayout(0, 6));
         this.field = field;
         setOpaque(false);
+        setPreferredSize(new Dimension(180, 62));
 
         JLabel label = new JLabel(labelText);
         label.setFont(AppFonts.LABEL);
         label.setForeground(AppColors.TEXT);
         add(label, BorderLayout.NORTH);
 
-        field.setPreferredSize(new Dimension(180, 36));
+        field.setPreferredSize(new Dimension(180, 38));
+        field.setMinimumSize(new Dimension(80, 38));
         field.setFont(AppFonts.BODY);
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(AppColors.BORDER),

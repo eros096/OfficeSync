@@ -57,7 +57,7 @@ public class RequestsPanel extends JPanel {
 
     public void refresh() {
         try {
-            currentSupplies = OfficeSyncDatabase.findAllSupplies();
+            currentSupplies = OfficeSyncDatabase.findRequestableSupplies();
             currentRequests = OfficeSyncDatabase.findVisibleRequests(user);
             repaintRequestTable();
             refreshCards();
@@ -73,19 +73,23 @@ public class RequestsPanel extends JPanel {
         title.setForeground(AppColors.TEXT);
         add(title);
 
-        JLabel subtitle = new JLabel("Submit, review, approve, reject, view, or delete supply requests.");
+        JLabel subtitle = new JLabel(user.getRole() == User.Role.ADMIN
+                ? "Review, approve, reject, view, or delete supply requests."
+                : "Submit, review, view, or delete supply requests.");
         subtitle.setBounds(28, 52, 560, 24);
         subtitle.setFont(AppFonts.BODY);
         subtitle.setForeground(AppColors.MUTED_TEXT);
         add(subtitle);
 
-        int buttonCount = 3;
+        int buttonCount = user.getRole() == User.Role.ADMIN ? 2 : 3;
         int x = CONTENT_X + CONTENT_WIDTH - (buttonCount * ACTION_WIDTH) - ((buttonCount - 1) * ACTION_GAP);
 
-        JButton submit = actionButton("+ Submit", AppColors.SUCCESS, x);
-        submit.addActionListener(event -> submitRequest());
-        add(submit);
-        x += ACTION_WIDTH + ACTION_GAP;
+        if (user.getRole() != User.Role.ADMIN) {
+            JButton submit = actionButton("+ Submit", AppColors.SUCCESS, x);
+            submit.addActionListener(event -> submitRequest());
+            add(submit);
+            x += ACTION_WIDTH + ACTION_GAP;
+        }
 
         JButton view = actionButton("View Request", AppColors.INFO, x);
         view.addActionListener(event -> viewRequest());
@@ -159,7 +163,9 @@ public class RequestsPanel extends JPanel {
         });
         panel.add(refresh);
 
-        JLabel note = new JLabel("Use Submit to open the request form. Select a row before View, Approve, Reject, or Delete.");
+        JLabel note = new JLabel(user.getRole() == User.Role.ADMIN
+                ? "Select a row before View, Approve, Reject, or Delete."
+                : "Use Submit to open the request form. Select a row before View or Delete.");
         note.setBounds(20, 76, 720, 24);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
@@ -169,7 +175,7 @@ public class RequestsPanel extends JPanel {
     private void buildTable() {
         tablePanel = new TablePanel("Request Records", tableModel, 250);
         tablePanel.setBounds(CONTENT_X, 342, CONTENT_WIDTH, 590);
-        if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.DEPARTMENT_HEAD) {
+        if (user.getRole() == User.Role.ADMIN) {
             JButton approve = tableActionButton("Approve", AppColors.WARNING, CONTENT_WIDTH - 244);
             approve.setForeground(AppColors.TEXT);
             approve.addActionListener(event -> updateSelectedStatus("Approved"));
@@ -197,13 +203,13 @@ public class RequestsPanel extends JPanel {
 
     private void submitRequest() {
         if (currentSupplies.isEmpty()) {
-            AppDialog.warning(this, "No supply is available to request.");
+            AppDialog.warning(this, "No in-stock supply is available to request.");
             return;
         }
 
         JComboBox<SupplyOption> supplyBox = new JComboBox<>();
         for (Supply supply : currentSupplies) {
-            supplyBox.addItem(new SupplyOption(supply.getId(), supply.getName()));
+            supplyBox.addItem(new SupplyOption(supply.getId(), supply.getName(), supply.getStock()));
         }
         LabeledField quantityField = new LabeledField("Quantity");
         JPanel panel = requestFormPanel(supplyBox, quantityField);
@@ -215,6 +221,10 @@ public class RequestsPanel extends JPanel {
         SupplyOption option = (SupplyOption) supplyBox.getSelectedItem();
         try {
             int quantity = ValidationUtil.parsePositiveInt(quantityField.getText(), "Quantity");
+            if (quantity > option.stock) {
+                AppDialog.warning(this, "Request quantity cannot exceed available stock.");
+                return;
+            }
             OfficeSyncDatabase.submitRequest(user.getId(), option.id, quantity);
             refresh();
             AppDialog.info(this, "Request submitted.");
@@ -249,8 +259,18 @@ public class RequestsPanel extends JPanel {
             return;
         }
 
+        String currentStatus = tableModel.getValueAt(row, 6).toString();
+        if (isFinalStatus(currentStatus) && !currentStatus.equalsIgnoreCase(status)) {
+            AppDialog.warning(this, "Request is already " + currentStatus + " and cannot be changed.");
+            return;
+        }
+
         try {
-            OfficeSyncDatabase.updateRequestStatus(parseRequestId(row), status);
+            boolean updated = OfficeSyncDatabase.updateRequestStatus(user, parseRequestId(row), status);
+            if (!updated) {
+                AppDialog.warning(this, "Only Admin can approve or reject requests.");
+                return;
+            }
             refresh();
             AppDialog.info(this, "Request marked as " + status + ".");
         } catch (SQLException ex) {
@@ -342,9 +362,13 @@ public class RequestsPanel extends JPanel {
                 .count();
     }
 
+    private boolean isFinalStatus(String status) {
+        return "Approved".equalsIgnoreCase(status) || "Rejected".equalsIgnoreCase(status);
+    }
+
     private JPanel requestFormPanel(JComboBox<SupplyOption> supplyBox, LabeledField quantityField) {
         JPanel panel = new JPanel(null);
-        panel.setPreferredSize(new java.awt.Dimension(420, 170));
+        panel.setPreferredSize(new java.awt.Dimension(420, 185));
         panel.setBackground(AppColors.SURFACE);
 
         JLabel supplyLabel = new JLabel("Supply");
@@ -357,11 +381,11 @@ public class RequestsPanel extends JPanel {
         supplyBox.setFont(AppFonts.BODY);
         panel.add(supplyBox);
 
-        quantityField.setBounds(18, 86, 180, 48);
+        quantityField.setBounds(18, 86, 180, 62);
         panel.add(quantityField);
 
-        JLabel note = new JLabel("Request quantity must be greater than zero.");
-        note.setBounds(210, 102, 200, 24);
+        JLabel note = new JLabel("Request quantity must not exceed available stock.");
+        note.setBounds(210, 111, 200, 24);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
         panel.add(note);
@@ -371,15 +395,17 @@ public class RequestsPanel extends JPanel {
     private static class SupplyOption {
         private final int id;
         private final String name;
+        private final int stock;
 
-        private SupplyOption(int id, String name) {
+        private SupplyOption(int id, String name, int stock) {
             this.id = id;
             this.name = name;
+            this.stock = stock;
         }
 
         @Override
         public String toString() {
-            return name;
+            return name + " (" + stock + " available)";
         }
 
         @Override

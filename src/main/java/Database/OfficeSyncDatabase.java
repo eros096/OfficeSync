@@ -37,9 +37,10 @@ public final class OfficeSyncDatabase {
 
     public static User authenticate(String email, String password) throws SQLException {
         String sql = """
-                SELECT u.user_id, u.full_name, u.email, u.role, u.department_id, d.department_name
+                SELECT u.user_id, u.full_name, u.email, u.role, u.department_id,
+                       COALESCE(d.department_name, 'No Department') AS department_name
                 FROM users u
-                INNER JOIN departments d ON d.department_id = u.department_id
+                LEFT JOIN departments d ON d.department_id = u.department_id
                 WHERE u.email = ? AND u.password_hash = ?
                 """;
 
@@ -60,6 +61,20 @@ public final class OfficeSyncDatabase {
                         result.getInt("department_id"),
                         result.getString("department_name")
                 );
+            }
+        }
+    }
+
+    public static boolean emailExists(String email) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, email);
+
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getInt(1) > 0;
             }
         }
     }
@@ -87,6 +102,25 @@ public final class OfficeSyncDatabase {
                 SELECT supply_id, supply_name, category, quantity_in_stock, reorder_level, is_available
                 FROM supplies
                 WHERE is_available = TRUE AND quantity_in_stock <= reorder_level
+                ORDER BY supply_name
+                """;
+        List<Supply> supplies = new ArrayList<>();
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet result = statement.executeQuery()) {
+            while (result.next()) {
+                supplies.add(mapSupply(result));
+            }
+        }
+        return supplies;
+    }
+
+    public static List<Supply> findRequestableSupplies() throws SQLException {
+        String sql = """
+                SELECT supply_id, supply_name, category, quantity_in_stock, reorder_level, is_available
+                FROM supplies
+                WHERE is_available = TRUE AND quantity_in_stock > 0
                 ORDER BY supply_name
                 """;
         List<Supply> supplies = new ArrayList<>();
@@ -157,11 +191,12 @@ public final class OfficeSyncDatabase {
 
     public static List<SupplyRequest> findVisibleRequests(User user) throws SQLException {
         StringBuilder sql = new StringBuilder("""
-                SELECT r.request_id, u.full_name, u.department_id, d.department_name,
+                SELECT r.request_id, u.full_name, u.department_id,
+                       COALESCE(d.department_name, 'No Department') AS department_name,
                        s.supply_name, rd.quantity_requested, r.request_date, r.status
                 FROM requests r
                 INNER JOIN users u ON u.user_id = r.user_id
-                INNER JOIN departments d ON d.department_id = u.department_id
+                LEFT JOIN departments d ON d.department_id = u.department_id
                 INNER JOIN request_details rd ON rd.request_id = r.request_id
                 INNER JOIN supplies s ON s.supply_id = rd.supply_id
                 """);
@@ -192,13 +227,34 @@ public final class OfficeSyncDatabase {
     }
 
     public static void submitRequest(int userId, int supplyId, int quantity) throws SQLException {
+        String supplySql = """
+                SELECT supply_name, quantity_in_stock, is_available
+                FROM supplies
+                WHERE supply_id = ?
+                """;
         String requestSql = "INSERT INTO requests (user_id, request_date, status) VALUES (?, ?, 'Pending')";
         String detailSql = "INSERT INTO request_details (request_id, supply_id, quantity_requested) VALUES (?, ?, ?)";
 
         try (Connection connection = getConnection()) {
             connection.setAutoCommit(false);
-            try (PreparedStatement requestStatement = connection.prepareStatement(requestSql, Statement.RETURN_GENERATED_KEYS);
+            try (PreparedStatement supplyStatement = connection.prepareStatement(supplySql);
+                 PreparedStatement requestStatement = connection.prepareStatement(requestSql, Statement.RETURN_GENERATED_KEYS);
                  PreparedStatement detailStatement = connection.prepareStatement(detailSql)) {
+                supplyStatement.setInt(1, supplyId);
+                try (ResultSet result = supplyStatement.executeQuery()) {
+                    if (!result.next()) {
+                        throw new SQLException("Selected supply does not exist.");
+                    }
+                    boolean available = result.getBoolean("is_available");
+                    int stock = result.getInt("quantity_in_stock");
+                    if (!available || stock <= 0) {
+                        throw new SQLException("Selected supply is out of stock and cannot be requested.");
+                    }
+                    if (quantity > stock) {
+                        throw new SQLException("Request quantity is greater than available stock.");
+                    }
+                }
+
                 requestStatement.setInt(1, userId);
                 requestStatement.setDate(2, Date.valueOf(LocalDate.now()));
                 requestStatement.executeUpdate();
@@ -223,15 +279,88 @@ public final class OfficeSyncDatabase {
         }
     }
 
-    public static void updateRequestStatus(int requestId, String status) throws SQLException {
-        String sql = "UPDATE requests SET status = ? WHERE request_id = ?";
-
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, status);
-            statement.setInt(2, requestId);
-            statement.executeUpdate();
+    public static boolean updateRequestStatus(User user, int requestId, String status) throws SQLException {
+        if (user.getRole() != User.Role.ADMIN) {
+            return false;
         }
+
+        String requestSql = """
+                SELECT r.status, rd.supply_id, rd.quantity_requested, s.quantity_in_stock, s.is_available
+                FROM requests r
+                INNER JOIN request_details rd ON rd.request_id = r.request_id
+                INNER JOIN supplies s ON s.supply_id = rd.supply_id
+                WHERE r.request_id = ?
+                FOR UPDATE
+                """;
+        String stockSql = """
+                UPDATE supplies
+                SET quantity_in_stock = ?,
+                    is_available = ?
+                WHERE supply_id = ?
+                """;
+        String statusSql = "UPDATE requests SET status = ? WHERE request_id = ?";
+
+        try (Connection connection = getConnection()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement requestStatement = connection.prepareStatement(requestSql);
+                 PreparedStatement stockStatement = connection.prepareStatement(stockSql);
+                 PreparedStatement statusStatement = connection.prepareStatement(statusSql)) {
+                requestStatement.setInt(1, requestId);
+
+                String currentStatus;
+                int supplyId;
+                int quantityRequested;
+                int quantityInStock;
+                boolean available;
+                try (ResultSet result = requestStatement.executeQuery()) {
+                    if (!result.next()) {
+                        connection.rollback();
+                        return false;
+                    }
+                    currentStatus = result.getString("status");
+                    supplyId = result.getInt("supply_id");
+                    quantityRequested = result.getInt("quantity_requested");
+                    quantityInStock = result.getInt("quantity_in_stock");
+                    available = result.getBoolean("is_available");
+                }
+
+                if (isFinalStatus(currentStatus) && !currentStatus.equalsIgnoreCase(status)) {
+                    connection.rollback();
+                    throw new SQLException("Request is already " + currentStatus + " and cannot be changed.");
+                }
+
+                if ("Approved".equalsIgnoreCase(status) && !"Approved".equalsIgnoreCase(currentStatus)) {
+                    if (!available || quantityInStock <= 0) {
+                        connection.rollback();
+                        throw new SQLException("Selected supply is out of stock and cannot be approved.");
+                    }
+                    if (quantityInStock < quantityRequested) {
+                        connection.rollback();
+                        throw new SQLException("Not enough stock to approve this request.");
+                    }
+                    int updatedStock = quantityInStock - quantityRequested;
+                    stockStatement.setInt(1, updatedStock);
+                    stockStatement.setBoolean(2, updatedStock > 0);
+                    stockStatement.setInt(3, supplyId);
+                    stockStatement.executeUpdate();
+                }
+
+                statusStatement.setString(1, status);
+                statusStatement.setInt(2, requestId);
+                boolean updated = statusStatement.executeUpdate() > 0;
+                connection.commit();
+                return updated;
+            } catch (SQLException ex) {
+                connection.rollback();
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        }
+    }
+
+    private static boolean isFinalStatus(String status) {
+        return "Approved".equalsIgnoreCase(status) || "Rejected".equalsIgnoreCase(status);
     }
 
     public static void deleteRequest(int requestId) throws SQLException {

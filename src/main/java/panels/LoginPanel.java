@@ -147,12 +147,12 @@ public class LoginPanel extends JPanel {
 
         JLabel demo = new JLabel("<html>"
                 + "<b>Demo accounts</b><br>"
-                + "Admin: admin@officesync.local<br>"
-                + "Head: head@officesync.local<br>"
-                + "Employee: employee@officesync.local<br>"
+                + "Admin: admin@<br>"
+                + "Head: head@<br>"
+                + "Employee: employee@<br>"
                 + "Password: 1234"
                 + "</html>");
-        demo.setBounds(55, 435, 340, 70);
+        demo.setBounds(55, 400, 340, 100);
         demo.setForeground(AppColors.MUTED_TEXT);
         demo.setFont(AppFonts.SMALL);
         card.add(demo);
@@ -170,13 +170,19 @@ public class LoginPanel extends JPanel {
         try {
             User user = OfficeSyncDatabase.authenticate(email, password);
             if (user == null) {
-                AppDialog.error(this, "Invalid email or password.");
+                if (OfficeSyncDatabase.emailExists(email)) {
+                    AppDialog.error(this, "Incorrect password. Please try again.");
+                } else {
+                    AppDialog.error(this, "Email not found. Please check your email address.");
+                }
                 return;
             }
 
             AppDialog.info(this, "Welcome, " + user.getFullName() + "!");
             new DashboardPage(user).setVisible(true);
             parentFrame.dispose();
+        } catch (IllegalArgumentException ex) {
+            AppDialog.error(this, "This account has an invalid role in the database:\n" + ex.getMessage());
         } catch (SQLException ex) {
             AppDialog.error(this, "Database connection error. Is MySQL/XAMPP running?\n" + ex.getMessage());
         }

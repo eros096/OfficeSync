@@ -7,7 +7,7 @@ OfficeSync is a Java Swing inventory system for managing office supplies and sup
 - Login with role-based access.
 - Dashboard summary for supplies, low-stock items, pending requests, and role scope.
 - Supplies management for inventory records.
-- Request submission, viewing, approval, rejection, and deletion.
+- Request submission for in-stock supplies only, plus viewing, approval, rejection, and deletion. Admin approval automatically deducts approved quantities from stock.
 - Reports for low-stock and pending-request summaries.
 
 ## Project Structure
@@ -58,16 +58,15 @@ Default login accounts all use password `1234`:
 | Role | Email |
 | --- | --- |
 | Admin | `admin@officesync.local` |
-| Department Head | `head@officesync.local` |
+| Head | `head@officesync.local` |
 | Employee | `employee@officesync.local` |
-| Employee | `maria@officesync.local` |
 
 For a deeper database explanation, see `docs/DATABASE.md`.
 
 ## Role Rules
 
-- Admin can see all requests and manage supplies.
-- Department Head can see requests from users in the same department.
+- Admin can see all requests, approve/reject requests, and manage supplies. Admin cannot submit requests.
+- Head can see requests from users in the same department.
 - Employee can see only their own requests.
 
-These rules are applied in `OfficeSyncDatabase.findVisibleRequests(...)` and `OfficeSyncDatabase.countPendingRequestsFor(...)`.
+Visibility rules are applied in `OfficeSyncDatabase.findVisibleRequests(...)` and `OfficeSyncDatabase.countPendingRequestsFor(...)`. Approval and rejection are Admin-only through `OfficeSyncDatabase.updateRequestStatus(...)`.

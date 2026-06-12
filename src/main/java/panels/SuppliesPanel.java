@@ -318,16 +318,16 @@ public class SuppliesPanel extends JPanel {
 
     private JPanel supplyFormPanel(LabeledField nameField, LabeledField categoryField, LabeledField stockField, LabeledField reorderField) {
         JPanel panel = new JPanel(null);
-        panel.setPreferredSize(new java.awt.Dimension(430, 230));
+        panel.setPreferredSize(new java.awt.Dimension(430, 260));
         panel.setBackground(AppColors.SURFACE);
 
-        nameField.setBounds(18, 12, 390, 46);
-        categoryField.setBounds(18, 64, 390, 46);
-        stockField.setBounds(18, 116, 185, 46);
-        reorderField.setBounds(223, 116, 185, 46);
+        nameField.setBounds(18, 12, 390, 62);
+        categoryField.setBounds(18, 82, 390, 62);
+        stockField.setBounds(18, 152, 185, 62);
+        reorderField.setBounds(223, 152, 185, 62);
 
         JLabel note = new JLabel("Stock and reorder level update the selected inventory record.");
-        note.setBounds(18, 178, 390, 28);
+        note.setBounds(18, 224, 390, 28);
         note.setFont(AppFonts.BODY);
         note.setForeground(AppColors.MUTED_TEXT);
 

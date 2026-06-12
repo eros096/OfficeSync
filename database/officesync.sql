@@ -8,10 +8,12 @@ DROP TABLE IF EXISTS supplies;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS departments;
 
--- Departments group users and control what Department Head accounts can see.
+-- The system currently uses one department only. Head and Employee accounts
+-- belong to IT Department; Admin accounts use department ID 0.
 CREATE TABLE departments (
     department_id INT PRIMARY KEY AUTO_INCREMENT,
-    department_name VARCHAR(100) NOT NULL UNIQUE
+    department_name VARCHAR(100) NOT NULL UNIQUE,
+    CHECK (department_name = 'IT Department')
 );
 
 -- Users are login accounts. Passwords are stored as SHA-256 hashes.
@@ -22,7 +24,11 @@ CREATE TABLE users (
     password_hash VARCHAR(64) NOT NULL,
     role VARCHAR(50) NOT NULL,
     department_id INT NOT NULL,
-    FOREIGN KEY (department_id) REFERENCES departments(department_id)
+    CHECK (role IN ('Admin', 'Head', 'Employee')),
+    CHECK (
+        (role = 'Admin' AND department_id = 0)
+        OR (role IN ('Head', 'Employee') AND department_id = 1)
+    )
 );
 
 -- Supplies are inventory items. The app marks an item as low stock when
@@ -57,16 +63,12 @@ CREATE TABLE request_details (
 );
 
 INSERT INTO departments (department_name) VALUES
-('Administration'),
-('IT Department'),
-('HR Department'),
-('Operations');
+('IT Department');
 
 INSERT INTO users (full_name, email, password_hash, role, department_id) VALUES
-('Alyssa Reyes', 'admin@officesync.local', SHA2('1234', 256), 'Admin', 1),
-('Marco Santos', 'head@officesync.local', SHA2('1234', 256), 'Department Head', 2),
-('Juan Dela Cruz', 'employee@officesync.local', SHA2('1234', 256), 'Employee', 4),
-('Maria Santos', 'maria@officesync.local', SHA2('1234', 256), 'Employee', 3);
+('Eiros Agulto', 'admin@', SHA2('1234', 256), 'Admin', 0),
+('Ezekiel Parao', 'head@', SHA2('1234', 256), 'Head', 1),
+('Hannah Laderas', 'employee@', SHA2('1234', 256), 'Employee', 1);
 
 INSERT INTO supplies (supply_name, category, quantity_in_stock, reorder_level, is_available) VALUES
 ('Bond Paper', 'Paper', 8, 10, TRUE),
@@ -78,7 +80,7 @@ INSERT INTO supplies (supply_name, category, quantity_in_stock, reorder_level, i
 
 INSERT INTO requests (user_id, request_date, status) VALUES
 (3, '2026-06-01', 'Pending'),
-(4, '2026-06-02', 'Pending'),
+(3, '2026-06-02', 'Pending'),
 (2, '2026-06-03', 'Pending'),
 (1, '2026-06-04', 'Approved');
 
