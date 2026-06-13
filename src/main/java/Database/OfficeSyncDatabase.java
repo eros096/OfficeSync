@@ -35,6 +35,7 @@ public final class OfficeSyncDatabase {
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 
+    //QUERY 1: USER AUTHENTICATE AND LOGIN
     public static User authenticate(String email, String password) throws SQLException {
         String sql = """
                 SELECT u.user_id, u.full_name, u.email, u.role, u.department_id,
@@ -65,6 +66,7 @@ public final class OfficeSyncDatabase {
         }
     }
 
+        //QUERY 2: CHECK EXISTING EMAIL
     public static boolean emailExists(String email) throws SQLException {
         String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
 
@@ -78,7 +80,7 @@ public final class OfficeSyncDatabase {
             }
         }
     }
-
+        //QUERY 3: RETRIEVE ALL SUPPLIES INVENTORY
     public static List<Supply> findAllSupplies() throws SQLException {
         String sql = """
                 SELECT supply_id, supply_name, category, quantity_in_stock, reorder_level, is_available
@@ -97,6 +99,7 @@ public final class OfficeSyncDatabase {
         return supplies;
     }
 
+           //QUERY 4: RETRIEVE LOW-STOCK SUPPLIES
     public static List<Supply> findLowStockSupplies() throws SQLException {
         String sql = """
                 SELECT supply_id, supply_name, category, quantity_in_stock, reorder_level, is_available
@@ -115,7 +118,8 @@ public final class OfficeSyncDatabase {
         }
         return supplies;
     }
-
+        
+        //QUERY 5 RETRIEVE REQUESSTABLE SUPPLIES
     public static List<Supply> findRequestableSupplies() throws SQLException {
         String sql = """
                 SELECT supply_id, supply_name, category, quantity_in_stock, reorder_level, is_available
@@ -135,6 +139,7 @@ public final class OfficeSyncDatabase {
         return supplies;
     }
 
+        //QUERY 6: INSERT NEW SUPPLY
     public static void addSupply(String name, String category, int stock, int reorderLevel) throws SQLException {
         String sql = """
                 INSERT INTO supplies (supply_name, category, quantity_in_stock, reorder_level, is_available)
@@ -151,7 +156,7 @@ public final class OfficeSyncDatabase {
             statement.executeUpdate();
         }
     }
-
+        //QUERY 7: UPDATE EXISTING SUPPLY
     public static void updateSupply(int id, String name, String category, int stock, int reorderLevel) throws SQLException {
         String sql = """
                 UPDATE supplies
@@ -170,14 +175,38 @@ public final class OfficeSyncDatabase {
             statement.executeUpdate();
         }
     }
-
+        
+        //QUERY 8: CASCADE HARD DELETE A SUPPLY ITEM
     public static void deleteSupply(int id) throws SQLException {
-        String sql = "DELETE FROM supplies WHERE supply_id = ?";
+        
+        String deleteDetailsSql = "DELETE FROM request_details WHERE supply_id = ?";
+       
+        String deleteSupplySql = "DELETE FROM supplies WHERE supply_id = ?";
 
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, id);
-            statement.executeUpdate();
+        try (Connection connection = getConnection()) {
+            
+            connection.setAutoCommit(false);
+            
+            try (PreparedStatement detailsStatement = connection.prepareStatement(deleteDetailsSql);
+                 PreparedStatement supplyStatement = connection.prepareStatement(deleteSupplySql)) {
+                
+                
+                detailsStatement.setInt(1, id);
+                detailsStatement.executeUpdate();
+
+                
+                supplyStatement.setInt(1, id);
+                supplyStatement.executeUpdate();
+                
+                
+                connection.commit();
+            } catch (SQLException ex) {
+                
+                connection.rollback();
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         }
     }
 
@@ -189,6 +218,7 @@ public final class OfficeSyncDatabase {
         return count("SELECT COUNT(*) FROM supplies WHERE is_available = TRUE AND quantity_in_stock <= reorder_level");
     }
 
+        //QUERY 9; DYNAMIC ROLE-BASED REQUEST VIEW
     public static List<SupplyRequest> findVisibleRequests(User user) throws SQLException {
         StringBuilder sql = new StringBuilder("""
                 SELECT r.request_id, u.full_name, u.department_id,
@@ -225,7 +255,8 @@ public final class OfficeSyncDatabase {
         }
         return requests;
     }
-
+        
+        //QUERY 11: CORE PROCESS: SUBMIT SUPPLY REQUEST (3 IN 1 TRANSACTION)
     public static void submitRequest(int userId, int supplyId, int quantity) throws SQLException {
         String supplySql = """
                 SELECT supply_name, quantity_in_stock, is_available
@@ -278,7 +309,7 @@ public final class OfficeSyncDatabase {
             }
         }
     }
-
+        //QUERY 12: CORE PROCESS: UPDATE REQUEST STATUS(3 IN 1 ADMIN ACTION
     public static boolean updateRequestStatus(User user, int requestId, String status) throws SQLException {
         if (user.getRole() != User.Role.ADMIN) {
             return false;
@@ -363,6 +394,7 @@ public final class OfficeSyncDatabase {
         return "Approved".equalsIgnoreCase(status) || "Rejected".equalsIgnoreCase(status);
     }
 
+        //QUERY 13: CASCADE DELETE REQUEST RECORDS
     public static void deleteRequest(int requestId) throws SQLException {
         String detailSql = "DELETE FROM request_details WHERE request_id = ?";
         String requestSql = "DELETE FROM requests WHERE request_id = ?";
@@ -386,6 +418,7 @@ public final class OfficeSyncDatabase {
         }
     }
 
+        //QUERY 10: DYNAMIC ROLE-BASED PENDING REQUEST COUNTER
     public static int countPendingRequestsFor(User user) throws SQLException {
         StringBuilder sql = new StringBuilder("""
                 SELECT COUNT(*)
