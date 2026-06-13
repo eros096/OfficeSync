@@ -9,6 +9,7 @@ import dialogs.AppDialog;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JButton; // Added import
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -105,6 +106,13 @@ public class ReportsPanel extends JPanel {
         reportFilter.setFont(AppFonts.BODY);
         reportFilter.addActionListener(event -> repaintReportTable());
         filterPanel.add(reportFilter);
+
+        // --- Added Refresh Button ---
+        JButton refreshButton = new JButton("Refresh");
+        refreshButton.setBounds(290, 36, 120, 30);
+        refreshButton.setFont(AppFonts.BODY);
+        refreshButton.addActionListener(event -> refresh());
+        filterPanel.add(refreshButton);
     }
 
     private void buildTable() {

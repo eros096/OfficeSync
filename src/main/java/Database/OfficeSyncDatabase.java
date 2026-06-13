@@ -43,7 +43,7 @@ public final class OfficeSyncDatabase {
                 FROM users u
                 LEFT JOIN departments d ON d.department_id = u.department_id
                 WHERE u.email = ? AND u.password_hash = ?
-                """;
+                """; 
 
         try (Connection connection = getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -176,7 +176,7 @@ public final class OfficeSyncDatabase {
         }
     }
         
-        //QUERY 8: CASCADE HARD DELETE A SUPPLY ITEM
+        //QUERY 8: HARD DELETE A SUPPLY ITEM
     public static void deleteSupply(int id) throws SQLException {
         
         String deleteDetailsSql = "DELETE FROM request_details WHERE supply_id = ?";
@@ -254,6 +254,35 @@ public final class OfficeSyncDatabase {
             }
         }
         return requests;
+    }
+    
+    //QUERY 10: DYNAMIC ROLE-BASED PENDING REQUEST COUNTER
+    public static int countPendingRequestsFor(User user) throws SQLException {
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(*)
+                FROM requests r
+                INNER JOIN users u ON u.user_id = r.user_id
+                WHERE r.status = 'Pending'
+                """);
+        if (user.getRole() == User.Role.EMPLOYEE) {
+            sql.append(" AND u.user_id = ?");
+        } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+            sql.append(" AND u.department_id = ?");
+        }
+
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            if (user.getRole() == User.Role.EMPLOYEE) {
+                statement.setInt(1, user.getId());
+            } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
+                statement.setInt(1, user.getDepartmentId());
+            }
+
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getInt(1);
+            }
+        }
     }
         
         //QUERY 11: CORE PROCESS: SUBMIT SUPPLY REQUEST (3 IN 1 TRANSACTION)
@@ -418,34 +447,7 @@ public final class OfficeSyncDatabase {
         }
     }
 
-        //QUERY 10: DYNAMIC ROLE-BASED PENDING REQUEST COUNTER
-    public static int countPendingRequestsFor(User user) throws SQLException {
-        StringBuilder sql = new StringBuilder("""
-                SELECT COUNT(*)
-                FROM requests r
-                INNER JOIN users u ON u.user_id = r.user_id
-                WHERE r.status = 'Pending'
-                """);
-        if (user.getRole() == User.Role.EMPLOYEE) {
-            sql.append(" AND u.user_id = ?");
-        } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
-            sql.append(" AND u.department_id = ?");
-        }
-
-        try (Connection connection = getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
-            if (user.getRole() == User.Role.EMPLOYEE) {
-                statement.setInt(1, user.getId());
-            } else if (user.getRole() == User.Role.DEPARTMENT_HEAD) {
-                statement.setInt(1, user.getDepartmentId());
-            }
-
-            try (ResultSet result = statement.executeQuery()) {
-                result.next();
-                return result.getInt(1);
-            }
-        }
-    }
+        
 
     private static int count(String sql) throws SQLException {
         try (Connection connection = getConnection();
